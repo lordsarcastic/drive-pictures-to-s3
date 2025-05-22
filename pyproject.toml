@@ -1,16 +1,25 @@
 [tool.poetry]
 name = "drive-pictures-to-s3"
 version = "0.1.0"
-description = "Move pictures from Google to AWS S3"
+description = "A tool to transfer images from Google Drive to AWS S3"
 authors = ["lordsarcastic <adeoti.15.jude@gmail.com>"]
 license = "MIT"
 readme = "README.md"
+packages = [{include = "drive_pictures_to_s3", from = "."}]
+
 
 [tool.poetry.dependencies]
 python = "^3.12"
 httpx = "^0.24.0"
 loguru = "^0.7.0"
 python-decouple = "^3.8"
+google-api-python-client = "^2.169.0"
+google-auth-httplib2 = "^0.2.0"
+google-auth-oauthlib = "^1.2.2"
+boto3 = "^1.38.19"
+pydantic = "^2.11.5"
+pydantic-settings = "^2.9.1"
+
 
 
 [build-system]
@@ -29,8 +38,9 @@ ruff = "^0.0.284"
 towncrier = "^24.8.0"
 
 [tool.black]
-line-length = 100
-target-version = ["py39"]
+line-length = 88
+target-version = ['py312']
+include = '\.pyi?$'
 
 [tool.isort]
 profile = "black"
@@ -38,17 +48,18 @@ line_length = 100
 multi_line_output = 3
 
 [tool.mypy]
-python_version = "3.9"
+python_version = "3.12"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true
 disallow_incomplete_defs = true
 
 [tool.ruff]
-line-length = 100
-target-version = "py39"
+line-length = 88
+target-version = "py312"
 select = ["E", "F", "B", "I"]
 ignore = []
+
 [tool.towncrier]
 directory = "changelog"
 filename = "CHANGELOG.md"

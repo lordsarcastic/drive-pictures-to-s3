@@ -1,13 +1,10 @@
-from google.oauth2 import service_account
-from googleapiclient.discovery import build
-from googleapiclient.http import MediaIoBaseDownload
+from googleapiclient.discovery import build  # type: ignore
+from googleapiclient.http import MediaIoBaseDownload  # type: ignore
 import io
 from typing import List, Dict, Any
-import logging
+from loguru import logger
 
-from ..config import settings   # type: ignore
-
-logger = logging.getLogger(__name__)
+from drive_pictures_to_s3.config import settings   # type: ignore
 
 
 class DriveClient:
@@ -15,11 +12,10 @@ class DriveClient:
     
     def __init__(self) -> None:
         """Initialize the Google Drive client with credentials."""
-        credentials = service_account.Credentials.from_service_account_file(
-            settings.GOOGLE_APPLICATION_CREDENTIALS,
-            scopes=['https://www.googleapis.com/auth/drive.readonly']
-        )
+        logger.info("Initializing DriveClient...")
+        credentials = settings.get_google_credentials()
         self.service = build('drive', 'v3', credentials=credentials)
+        logger.info("DriveClient initialized.")
     
     def list_files(self) -> List[Dict[str, Any]]:
         """
@@ -28,6 +24,7 @@ class DriveClient:
         Returns:
             List of dictionaries containing file metadata
         """
+        logger.info(f"Listing files from Google Drive folder ID: {settings.GOOGLE_DRIVE_FOLDER_ID}")
         try:
             # Query for image files in the specified folder
             query = f"'{settings.GOOGLE_DRIVE_FOLDER_ID}' in parents and mimeType contains 'image/'"
@@ -39,7 +36,7 @@ class DriveClient:
             
             files = results.get('files', [])
             logger.info(f"Found {len(files)} image files in the folder")
-            return files
+            return files  # type: ignore
             
         except Exception as e:
             logger.error(f"Error listing files: {str(e)}")
@@ -55,9 +52,11 @@ class DriveClient:
         Returns:
             Tuple of (file content as bytes, file name)
         """
+        logger.info(f"Downloading file with ID: {file_id} from Google Drive...")
         try:
             file_metadata = self.service.files().get(fileId=file_id, fields="name").execute()
             file_name = file_metadata.get('name')
+            logger.info(f"Retrieved metadata for file ID: {file_id}, Filename: {file_name}")
             
             request = self.service.files().get_media(fileId=file_id)
             file_handle = io.BytesIO()
@@ -65,10 +64,14 @@ class DriveClient:
             
             done = False
             while not done:
-                _, done = downloader.next_chunk()
+                status, done = downloader.next_chunk()
+                if status:
+                    logger.debug(f"Download progress for {file_name}: {int(status.progress() * 100)}%")
             
             file_handle.seek(0)
-            return file_handle.getvalue(), file_name
+            file_content = file_handle.getvalue()
+            logger.success(f"Successfully downloaded {file_name} (ID: {file_id}), size: {len(file_content)} bytes")
+            return file_content, file_name
             
         except Exception as e:
             logger.error(f"Error downloading file {file_id}: {str(e)}")

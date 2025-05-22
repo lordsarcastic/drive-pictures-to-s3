@@ -1,15 +1,11 @@
-import logging
 import sys
+from loguru import logger
 
 from config import settings
 from clients import DriveClient, S3Client
 
 # Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
+logger.add(sys.stderr, format="{time} {level} {message}", level="INFO")
 
 
 class ImageTransfer:
@@ -17,11 +13,14 @@ class ImageTransfer:
     
     def __init__(self) -> None:
         """Initialize the image transfer process."""
+        logger.info("Initializing ImageTransfer...")
         self.drive_client = DriveClient()
         self.s3_client = S3Client()
+        logger.info("ImageTransfer initialized.")
     
     def process_files(self) -> None:
         """Process all files in the specified Google Drive folder."""
+        logger.info("Starting file processing...")
         try:
             # List files from Google Drive
             files = self.drive_client.list_files()
@@ -29,15 +28,20 @@ class ImageTransfer:
                 logger.info("No files found in the specified folder")
                 return
             
+            logger.info(f"Found {len(files)} files to process.")
             # Process each file
             for index, file in enumerate(files, start=1):
+                file_id = file['id']
+                file_name_display = file.get('name', file_id)
+                logger.info(f"Processing file {index}/{len(files)}: {file_name_display} (ID: {file_id})")
                 try:
                     # Download file from Google Drive
-                    file_content, file_name = self.drive_client.download_file(file['id'])
+                    file_content, file_name = self.drive_client.download_file(file_id)
                     
                     # Upload to S3
                     counter = None if settings.RETAIN_FILENAMES else index
-                    self.s3_client.upload_file(file_content, file_name, counter)
+                    s3_key = self.s3_client.upload_file(file_content, file_name, counter)
+                    logger.success(f"Successfully processed and uploaded {file_name_display} to S3 as {s3_key}")
                     
                 except Exception as e:
                     logger.error(f"Error processing file {file.get('name', 'unknown')}: {str(e)}")
@@ -48,16 +52,22 @@ class ImageTransfer:
         except Exception as e:
             logger.error(f"Error in file transfer process: {str(e)}")
             sys.exit(1)
+        finally:
+            logger.info("File processing finished.")
 
 
 def main() -> None:
     """Main entry point for the application."""
+    logger.info("Application starting...")
     try:
         transfer = ImageTransfer()
         transfer.process_files()
+        logger.info("Application finished successfully.")
     except Exception as e:
         logger.error(f"Application error: {str(e)}")
         sys.exit(1)
+    finally:
+        logger.info("Application ended.")
 
 
 if __name__ == "__main__":
