@@ -5,6 +5,8 @@ from pydantic import Field
 from pydantic_settings import BaseSettings
 
 load_dotenv()
+
+
 class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
 

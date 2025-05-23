@@ -1,3 +1,4 @@
+import asyncio
 import io
 import os
 from typing import Any, Dict, List, cast
@@ -12,6 +13,11 @@ from loguru import logger
 
 SCOPES = ["https://www.googleapis.com/auth/drive.readonly"]
 
+# Constants for rate limiting and retries
+MAX_CONCURRENT_DOWNLOADS = 1  # Limit concurrent downloads
+MAX_RETRIES = 3  # Maximum number of retry attempts
+RETRY_DELAY = 2  # Delay between retries in seconds
+
 
 class DriveClient:
     """Client for interacting with Google Drive API."""
@@ -21,6 +27,7 @@ class DriveClient:
         logger.info("Initializing DriveClient...")
         credentials = self.get_credentials()
         self.service = build("drive", "v3", credentials=credentials)
+        self.semaphore = asyncio.Semaphore(MAX_CONCURRENT_DOWNLOADS)  # Added
         logger.info("DriveClient initialized.")
 
     @classmethod
@@ -91,9 +98,9 @@ class DriveClient:
             logger.error(f"Error listing files: {str(e)}")
             raise
 
-    def download_file(self, file_id: str) -> tuple[bytes, str]:
+    async def download_file(self, file_id: str) -> tuple[bytes, str]:
         """
-        Download a file from Google Drive.
+        Download a file from Google Drive with rate limiting and retries.
 
         Args:
             file_id: The ID of the file to download
@@ -102,6 +109,29 @@ class DriveClient:
             Tuple of (file content as bytes, file name)
         """
         logger.info(f"Downloading file with ID: {file_id} from Google Drive...")
+
+        async with self.semaphore:  # Added: Rate limiting
+            for attempt in range(MAX_RETRIES):  # Added: Retry logic
+                try:
+                    return await asyncio.to_thread(self._blocking_download, file_id)
+                except Exception as e:
+                    if attempt < MAX_RETRIES - 1:  # Don't sleep on the last attempt
+                        logger.warning(
+                            f"Attempt {attempt + 1}/{MAX_RETRIES} failed for file {file_id}. "  # noqa: E501
+                            f"Error: {str(e)}. Retrying in {RETRY_DELAY} seconds..."
+                        )
+                        await asyncio.sleep(RETRY_DELAY)
+                    else:
+                        logger.error(f"Error downloading file {file_id}: {str(e)}")
+                        raise
+            # This return will never be reached, but it satisfies the linter
+            raise RuntimeError("Unexpected end of retry loop")  # Added
+
+    def _blocking_download(self, file_id: str) -> tuple[bytes, str]:
+        """
+        Blocking implementation of file download.
+        This is called by download_file through asyncio.to_thread.
+        """
         try:
             file_metadata = (
                 self.service.files().get(fileId=file_id, fields="name").execute()
