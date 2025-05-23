@@ -1,15 +1,7 @@
+# Use an official Python runtime as a parent image
 FROM python:3.12-slim
 
-ENV PYTHONDONTWRITEBYTECODE=1
-ENV PYTHONUNBUFFERED=1
-
-RUN apt-get update \
-    && apt-get install -y \
-        ca-certificates \
-        openssl \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
-
+# Set the working directory in the container
 WORKDIR /app
 
 RUN pip install -U poetry
@@ -20,6 +12,8 @@ COPY pyproject.toml poetry.lock ./
 
 RUN poetry install --without dev --no-root --no-interaction --no-ansi
 
-COPY drive_pictures_to_s3/ .
+# Copy the content of the local src directory to the working directory
+COPY ./drive_pictures_to_s3 ./drive_pictures_to_s3/
 
-ENTRYPOINT ["python", "main.py"] 
+# Specify the command to run on container start
+CMD ["python", "drive_pictures_to_s3/main.py"] 

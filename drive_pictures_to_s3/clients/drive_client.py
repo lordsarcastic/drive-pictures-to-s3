@@ -4,7 +4,7 @@ import io
 from typing import List, Dict, Any
 from loguru import logger
 
-from drive_pictures_to_s3.config import settings   # type: ignore
+from config import settings   # type: ignore
 
 
 class DriveClient:

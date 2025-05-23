@@ -3,7 +3,7 @@ from botocore.exceptions import ClientError     # type: ignore
 from loguru import logger
 from typing import Optional
 
-from drive_pictures_to_s3.config import settings
+from config import settings
 
 
 class S3Client:

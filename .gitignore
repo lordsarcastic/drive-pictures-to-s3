@@ -172,3 +172,9 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+
+# Credentials and sensitive files
+credentials.json
+*.pem
+*.key 
+google_credentials.json
