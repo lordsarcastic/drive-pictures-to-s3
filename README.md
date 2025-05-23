@@ -9,14 +9,14 @@ A Python application that transfers images from a Google Drive folder to AWS S3,
 - Comprehensive error handling and detailed logging using `loguru`
 - Environment-based configuration
 - Modular and maintainable code structure
-- Docker support for easy deployment and execution
+- Docker support for easy deployment and execution (Note: Currently limited due to OAuth flow)
 
 ## Prerequisites
 
-- Python 3.8 or higher (for local development)
-- Docker (for running with Docker)
+- Python 3.12 or higher (for local development)
+- Docker (for running with Docker, but see limitations below)
 - Google Cloud project with Drive API enabled
-- Google service account with access to the target Drive folder
+- Google OAuth 2.0 credentials (not a service account)
 - AWS account with S3 access
 - AWS credentials with appropriate permissions
 
@@ -42,40 +42,50 @@ A Python application that transfers images from a Google Drive folder to AWS S3,
 3.  **Set up Google Cloud:**
     *   Create a project in Google Cloud Console.
     *   Enable the Google Drive API.
-    *   Create a service account.
-    *   Download the service account key JSON file.
-    *   Share the target Drive folder with the service account email address found in the JSON key file.
+    *   Configure the OAuth consent screen:
+        *   Set the application type to "Desktop app"
+        *   Add the necessary scopes (Drive API read-only)
+    *   Create OAuth 2.0 credentials:
+        *   Choose "Desktop app" as the application type
+        *   Download the credentials JSON file
+    *   Share the target Drive folder with the Google account you'll use for authentication
 
 4.  **Configure environment variables:**
-    *   Create a `.env` file in the root of the project (you can copy `example.env` or `.env.example` if one exists and rename it to `.env`).
-    *   Fill in the required values in the `.env` file:
-        *   `GOOGLE_DRIVE_FOLDER_ID`: ID of the Google Drive folder to process.
-        *   `GOOGLE_APPLICATION_CREDENTIALS_JSON`: The JSON content of your service account key. (Alternatively, you can use `GOOGLE_APPLICATION_CREDENTIALS` to specify a file path, but `GOOGLE_APPLICATION_CREDENTIALS_JSON` is often easier for Docker).
-        *   `AWS_ACCESS_KEY_ID`: AWS access key ID.
-        *   `AWS_SECRET_ACCESS_KEY`: AWS secret access key.
-        *   `AWS_REGION`: AWS region.
-        *   `S3_BUCKET_NAME`: S3 bucket name.
-        *   `S3_PREFIX` (Optional): Prefix for S3 object keys (e.g., `images/` or `my-photos/`). Defaults to no prefix.
-        *   `RETAIN_FILENAMES`: Set to `True` to retain original filenames or `False` to use sequential numbers (e.g., `0001.jpg`, `0002.png`). Defaults to `True`.
+    Create a `.env` file in the root of the project with the following variables:
+
+    ```env
+    # Google Drive settings
+    GOOGLE_DRIVE_FOLDER_ID=your_folder_id_here
+    GOOGLE_OAUTH_CREDENTIALS=path/to/your/oauth_credentials.json
+    GOOGLE_TOKEN_CREDENTIALS_LOCATION=token.json  # Optional, defaults to token.json
+
+    # AWS settings
+    AWS_ACCESS_KEY_ID=your_aws_access_key
+    AWS_SECRET_ACCESS_KEY=your_aws_secret_key
+    AWS_REGION=your_aws_region
+    S3_BUCKET_NAME=your_bucket_name
+    S3_PREFIX=optional/prefix/  # Optional, defaults to empty string
+
+    # Application settings
+    RETAIN_FILENAMES=true  # Optional, defaults to true
+    ```
+
+    Required variables:
+    - `GOOGLE_DRIVE_FOLDER_ID`: The ID of the Google Drive folder containing your images
+    - `GOOGLE_OAUTH_CREDENTIALS`: Path to your Google OAuth credentials JSON file
+    - `GOOGLE_TOKEN_CREDENTIALS_LOCATION`: Where to save/load the OAuth token. Defaults to `token.json`.
+    - `AWS_ACCESS_KEY_ID`: Your AWS access key
+    - `AWS_SECRET_ACCESS_KEY`: Your AWS secret key
+    - `AWS_REGION`: AWS region (e.g., us-east-1)
+    - `S3_BUCKET_NAME`: Name of your S3 bucket
+
+    Optional variables:
+    - `S3_PREFIX`: Prefix for S3 object keys (default: empty string)
+    - `RETAIN_FILENAMES`: Whether to keep original filenames (true) or use sequential numbers (false)
 
 ## Usage
 
-### Option 1: Running with Docker (Recommended)
-
-1.  **Build the Docker image:**
-    ```bash
-    docker build -t drive-to-s3-importer .
-    ```
-
-2.  **Run the Docker container:**
-    Make sure you have a `.env` file configured as described in the "Setup" section.
-    ```bash
-    docker run --rm --env-file .env drive-to-s3-importer
-    ```
-    *   `--rm`: Automatically removes the container when it exits.
-    *   `--env-file .env`: Loads environment variables from the `.env` file.
-
-### Option 2: Running Locally (Python)
+### Option 1: Running Locally (Python)
 
 1.  Ensure you have completed the "Local Development Setup" and "Configure environment variables" steps.
 
@@ -83,6 +93,24 @@ A Python application that transfers images from a Google Drive folder to AWS S3,
     ```bash
     python drive_pictures_to_s3/main.py
     ```
+
+### Option 2: Running with Docker (Currently Limited)
+
+> **Note**: The Docker setup is currently limited because the application uses Google's OAuth flow, which requires user interaction for the initial authentication. This means the first run needs to be done locally to generate the token file. Once you have a valid token file, you can use Docker for subsequent runs.
+
+1.  **Build the Docker image:**
+    ```bash
+    docker build -t drive-to-s3-importer .
+    ```
+
+2.  **Run the Docker container:**
+    Make sure you have a `.env` file configured and a valid `token.json` file from a previous local run.
+    ```bash
+    docker run --rm --env-file .env -v $(pwd)/token.json:/app/token.json drive-to-s3-importer
+    ```
+    *   `--rm`: Automatically removes the container when it exits.
+    *   `--env-file .env`: Loads environment variables from the `.env` file.
+    *   `-v $(pwd)/token.json:/app/token.json`: Mounts your local token file into the container.
 
 The script will:
 1.  Connect to Google Drive using the service account.
@@ -93,14 +121,15 @@ The script will:
 
 ## Configuration Details
 
-Environment variables are loaded from a `.env` file at the root of the project using `pydantic-settings`.
+Environment variables are loaded from a `.env` file at the root of the project using `pydantic-settings`. The application validates all required variables at startup and provides sensible defaults for optional ones.
 
 Key configuration options:
 
 *   **`GOOGLE_DRIVE_FOLDER_ID`**: The unique identifier of the Google Drive folder from which to fetch images.
-*   **`GOOGLE_APPLICATION_CREDENTIALS_JSON` or `GOOGLE_APPLICATION_CREDENTIALS`**: Provide either the JSON content directly or the path to the credentials file.
+*   **`GOOGLE_OAUTH_CREDENTIALS`**: Path to your Google OAuth credentials JSON file. This is used for the initial authentication flow.
+*   **`GOOGLE_TOKEN_CREDENTIALS_LOCATION`**: Where to save/load the OAuth token. Defaults to `token.json`.
 *   **`S3_BUCKET_NAME`**: The name of your AWS S3 bucket where images will be stored.
-*   **`RETAIN_FILENAMES`**: Controls how files are named in S3. `True` keeps original names, `False` uses a sequential numeric prefix (e.g., `0001.ext`, `0002.ext`).
+*   **`RETAIN_FILENAMES`**: Controls how files are named in S3. `True` keeps original names, `False` uses a sequential numeric prefix (e.g., `1.ext`, `2.ext`).
 *   **`S3_PREFIX`**: If you want to store images in a specific "folder" within your S3 bucket, set this prefix (e.g., `backup/images/`).
 
 ## Error Handling
