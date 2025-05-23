@@ -338,6 +338,19 @@ files = [
 toml = ["tomli"]
 
 [[package]]
+name = "dotenv"
+version = "0.9.9"
+description = "Deprecated package"
+optional = false
+python-versions = "*"
+files = [
+    {file = "dotenv-0.9.9-py2.py3-none-any.whl", hash = "sha256:29cf74a087b31dafdb5a446b6d7e11cbce8ed2741540e2339c69fbef92c94ce9"},
+]
+
+[package.dependencies]
+python-dotenv = "*"
+
+[[package]]
 name = "google-api-core"
 version = "2.24.2"
 description = "Google API client core library"
@@ -1344,4 +1357,4 @@ dev = ["black (>=19.3b0)", "pytest (>=4.6.2)"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.12"
-content-hash = "9609d408032c9a7cf356f66740bc921c038a3a4c62d030d8c3dc22fe3b7afae5"
+content-hash = "025edd6e1eae44cbcaeb7c6fe87b2ea0391d33d89ddbada89982bec59672ba84"
